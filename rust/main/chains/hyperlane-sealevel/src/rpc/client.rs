@@ -3,7 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig,
+    nonblocking::rpc_client::RpcClient, 
+    rpc_config::RpcProgramAccountsConfig,
     rpc_response::Response,
 };
 use solana_sdk::{
@@ -20,9 +21,11 @@ use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding, UiTrans
 
 use crate::error::HyperlaneSealevelError;
 
+/// A client for interacting with the Sealevel RPC.
 pub struct SealevelRpcClient(RpcClient);
 
 impl SealevelRpcClient {
+    /// Creates a new SealevelRpcClient with the given RPC endpoint.
     pub fn new(rpc_endpoint: String) -> Self {
         Self(RpcClient::new_with_commitment(
             rpc_endpoint,
@@ -30,6 +33,7 @@ impl SealevelRpcClient {
         ))
     }
 
+    /// Confirms a transaction with the specified commitment level.
     pub async fn confirm_transaction_with_commitment(
         &self,
         signature: &Signature,
@@ -43,6 +47,7 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
+    /// Retrieves the account data associated with the given public key.
     pub async fn get_account(&self, pubkey: &Pubkey) -> ChainResult<Account> {
         self.0
             .get_account(pubkey)
@@ -50,7 +55,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// Simulates an Instruction that will return a list of AccountMetas.
+    /// Simulates an instruction that returns a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
         payer: &Keypair,
@@ -75,6 +80,7 @@ impl SealevelRpcClient {
         Ok(account_metas)
     }
 
+    /// Retrieves the account data with finalized commitment level or raises an error if not found.
     pub async fn get_account_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -84,6 +90,7 @@ impl SealevelRpcClient {
             .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
     }
 
+    /// Retrieves the account data with finalized commitment level, returning None if not found.
     pub async fn get_possible_account_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
@@ -97,6 +104,7 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
+    /// Retrieves the current block height.
     pub async fn get_block_height(&self) -> ChainResult<u32> {
         let height = self
             .0
@@ -104,11 +112,12 @@ impl SealevelRpcClient {
             .await
             .map_err(ChainCommunicationError::from_other)?
             .try_into()
-            // FIXME solana block height is u64...
+            // FIXME: Solana block height is u64, this will panic if it exceeds u32::MAX.
             .expect("sealevel block height exceeds u32::MAX");
         Ok(height)
     }
 
+    /// Retrieves multiple accounts with finalized commitment level.
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
         pubkeys: &[Pubkey],
@@ -123,6 +132,7 @@ impl SealevelRpcClient {
         Ok(accounts)
     }
 
+    /// Retrieves the latest blockhash with the specified commitment level.
     pub async fn get_latest_blockhash_with_commitment(
         &self,
         commitment: CommitmentConfig,
@@ -134,6 +144,7 @@ impl SealevelRpcClient {
             .map(|(blockhash, _)| blockhash)
     }
 
+    /// Retrieves the program accounts with the given configuration.
     pub async fn get_program_accounts_with_config(
         &self,
         pubkey: &Pubkey,
@@ -145,6 +156,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// Retrieves the status of the given signatures.
     pub async fn get_signature_statuses(
         &self,
         signatures: &[Signature],
@@ -155,6 +167,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// Retrieves the balance of the specified public key.
     pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
         let balance = self
             .0
@@ -166,6 +179,7 @@ impl SealevelRpcClient {
         Ok(balance.into())
     }
 
+    /// Checks if the given blockhash is valid.
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {
         self.0
             .is_blockhash_valid(hash, CommitmentConfig::processed())
@@ -173,6 +187,7 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// Sends and confirms a transaction, returning its signature.
     pub async fn send_and_confirm_transaction(
         &self,
         transaction: &Transaction,
@@ -183,10 +198,9 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// Simulates an instruction, and attempts to deserialize it into a T.
-    /// If no return data at all was returned, returns Ok(None).
-    /// If some return data was returned but deserialization was unsuccessful,
-    /// an Err is returned.
+    /// Simulates an instruction, attempting to deserialize it into a specified type T.
+    /// Returns Ok(None) if no return data is present.
+    /// Returns an Err if deserialization fails.
     pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         &self,
         payer: &Keypair,
@@ -219,6 +233,7 @@ impl SealevelRpcClient {
         Ok(None)
     }
 
+    /// Simulates a transaction and retrieves the return data.
     async fn simulate_transaction(
         &self,
         transaction: &Transaction,
@@ -227,7 +242,7 @@ impl SealevelRpcClient {
             .0
             .simulate_transaction(transaction)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(ChainCommunicationError::from_other)? 
             .value
             .return_data;
 
