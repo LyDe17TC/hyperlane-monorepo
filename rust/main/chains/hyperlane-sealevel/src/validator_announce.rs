@@ -10,6 +10,7 @@ use solana_sdk::pubkey::Pubkey;
 use tracing::{info, instrument, warn};
 
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
+use std::time::Instant;
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
@@ -60,6 +61,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
     ) -> ChainResult<Vec<Vec<String>>> {
         info!(program_id=?self.program_id, validators=?validators, "Getting validator storage locations");
 
+        let start_time = Instant::now(); // Start timing the operation
+
         // Get the validator storage location PDAs for each validator.
         let account_pubkeys: Vec<Pubkey> = validators
             .iter()
@@ -79,6 +82,9 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             .rpc()
             .get_multiple_accounts_with_finalized_commitment(&account_pubkeys)
             .await?;
+
+        let duration = start_time.elapsed(); // End timing
+        info!("Retrieved accounts in {:?}", duration); // Log the elapsed time
 
         // Parse the storage locations from each account.
         // If a validator's account doesn't exist, its storage locations will
